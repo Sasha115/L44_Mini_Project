@@ -1,4 +1,5 @@
 import tensorflow as tf
+import PIL
 from PIL import Image
 from scipy.misc import imread, imshow,imresize
 from glob import glob
@@ -92,7 +93,9 @@ keep_prob = tf.placeholder(tf.float32,shape=[])
 
 with slim.arg_scope(resnet_arg_scope()):
     #restore resnet101 model
-    resnet_logits, end_points = resnet_v1_101(images, num_classes=1000, global_pool=True, is_training=True)
+    #imgs = tf.map_fn(vgg_preprocessing.preprocess_image(fname, height_image, width_image, data_type) 
+    #imgs = [vgg_preprocessing.preprocess_image(fname, height_image, width_image, data_type) for fname in imgs]
+    resnet_logits, end_points = resnet_v1_101(images, num_classes=3, global_pool=True, is_training=True)
     
 
 def feed_dict(batch_size, data_type, epoch):
@@ -119,8 +122,9 @@ def feed_dict(batch_size, data_type, epoch):
 
   return {images: imgs, labels: lbls, learning_rate: lr, keep_prob: keep_prob_per}
 
-#checkpoint_exclude_scopes=["resnet_v1_101/logits"]
-checkpoint_exclude_scopes=[]
+
+checkpoint_exclude_scopes=["resnet_v1_101/logits"]
+#checkpoint_exclude_scopes=[]
 exclusions = checkpoint_exclude_scopes
 #review code!
 variables_to_restore = []
@@ -140,8 +144,8 @@ logits_drop = tf.contrib.layers.dropout(end_points['global_pool'], keep_prob)
 #introduce final FC layer to map output of resnet 1000 to 3 classes
 logits = tf.contrib.layers.fully_connected(logits_drop, 3)
 
-cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=labels, logits=logits))
-correct_prediction = tf.equal(tf.argmax(logits,1), tf.argmax(labels,1))
+cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=labels, logits=resnet_logits))
+correct_prediction = tf.equal(tf.argmax(resnet_logits,1), tf.argmax(labels,1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
@@ -212,9 +216,3 @@ with tf.Session() as sess:
     
   overall_training_time = time.time() - overall_training_time
   print("Training time: %s" % overall_training_time)
-  
-      
-  #features = graph.get_tensor_by_name('inception_v3/GlobalPool')
-  #features_values = sess.run(features)
-  #print (features_values[0])
-    
