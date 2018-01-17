@@ -1,0 +1,5 @@
+Epoch 0: Best validation accuracy: 0.3980716317481574
+Epoch 2: Best validation accuracy: 0.3988980779593641
+Epoch 3: Best validation accuracy: 0.408264470309758
+Epoch 4: Best validation accuracy: 0.42506887716531094
+Epoch 10: Best validation accuracy: 0.45371901438912743

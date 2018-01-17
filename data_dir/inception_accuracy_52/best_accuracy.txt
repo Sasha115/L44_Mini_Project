@@ -1,0 +1,16 @@
+Epoch 0: Best validation accuracy: 0.4082644690782571
+Epoch 3: Best validation accuracy: 0.4319559289527333
+Epoch 4: Best validation accuracy: 0.4446281068868545
+Epoch 5: Best validation accuracy: 0.46170799588122646
+Epoch 8: Best validation accuracy: 0.4818181880126315
+Epoch 18: Best validation accuracy: 0.49366391907874546
+Epoch 28: Best validation accuracy: 0.5077135051208094
+Epoch 36: Best validation accuracy: 0.5118457358484426
+Epoch 38: Best validation accuracy: 0.5134986282092809
+Epoch 41: Best validation accuracy: 0.5247933952235322
+Epoch 43: Best validation accuracy: 0.5267217700721147
+Epoch 0: Best validation accuracy: 0.3809917425895854
+Epoch 1: Best validation accuracy: 0.4093663982082333
+Epoch 3: Best validation accuracy: 0.4170798966378877
+Epoch 4: Best validation accuracy: 0.4413223204616016
+Epoch 5: Best validation accuracy: 0.45785124530148574
