@@ -79,11 +79,11 @@ total_num_images_training = 3630
 total_num_images_validation = 2065
 
 #data segmentation
-num_epochs = 20 #hp 1
+num_epochs = 50 #hp 1
 batch_size = 50 #hp 2
 
 #learning rate
-initial_learning_rate = 0.001 #hp 3
+initial_learning_rate = 0.001#hp 3
 num_epochs_before_decay = 25
 learning_rate_decay_iterations = 15 #hp 4
 
@@ -112,10 +112,11 @@ def feed_dict(batch_size,generator, epoch, use_dropout):
 
     imgs, lbls = map(list, zip(*next(generator)))
 
-    if(epoch == 6):
-        lr = 0.0001
-    elif(epoch == 7):
-        lr = 0.001
+    if(epoch >= 2):
+        lr = 0.00001
+    #    lr = 0.0001
+    #elif(epoch == 7):
+    #    lr = 0.001
     #elif(epoch >= num_epochs_before_decay)# and epoch % learning_rate_decay_iterations == 0):
         #lr = 0.
     #    lr = 0.001*(10**(-epoch/100))
@@ -162,8 +163,18 @@ saver = tf.train.Saver(variables_to_restore)
 cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=labels, logits=resnet_logits))
 correct_prediction = tf.equal(tf.argmax(resnet_logits,1), tf.argmax(labels,1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-precision = tf.metrics.precision(tf.argmax(resnet_logits,1), tf.argmax(labels,1))
-recall = tf.metrics.recall(tf.argmax(resnet_logits,1), tf.argmax(labels,1))
+#precision, p_op = tf.metrics.precision(tf.argmax(resnet_logits,1), tf.argmax(labels,1))
+#recall, r_op = tf.metrics.recall(tf.argmax(resnet_logits,1), tf.argmax(labels,1))
+#tf_accuracy,acc_op = tf.metrics.accuracy(predictions=tf.argmax(resnet_logits,1), labels=tf.argmax(labels,1))
+with tf.variable_scope("reset_metrics_accuracy_scope") as scope:
+    precision, p_op = tf.metrics.precision(tf.argmax(resnet_logits,1), tf.argmax(labels,1))
+    recall, r_op = tf.metrics.recall(tf.argmax(resnet_logits,1), tf.argmax(labels,1))
+    tf_accuracy,acc_op = tf.metrics.accuracy(predictions=tf.argmax(resnet_logits,1), labels=tf.argmax(labels,1))
+    #v, op = tf.metrics.accuracy(pred, label)
+    vars = tf.contrib.framework.get_variables(scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
+    reset_op = tf.variables_initializer(vars)
+#f1_score = 2 ** (precision * recall/(precision + recall))
+#f1_score = 1
 
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
 train_op = slim.learning.create_train_op(cross_entropy, optimizer)
@@ -172,10 +183,6 @@ train_op = slim.learning.create_train_op(cross_entropy, optimizer)
 with tf.Session() as sess:
  
   saver.restore(sess,os.path.join(checkpoints_dir, 'resnet_v1_101.ckpt'))
-        
-  #updated_checkpoints_dir = "/home/ubuntu/project/best_models/inception_52/"
- 
-  #saver.restore(sess,os.path.join(updated_checkpoints_dir))
   sess.run(tf.initialize_all_variables())
   sess.run(tf.global_variables_initializer())
   sess.run(tf.local_variables_initializer())
@@ -191,12 +198,12 @@ with tf.Session() as sess:
   time_elapsed_eval_per_epoch = 0
   time_elapsed_training_per_epoch = 0
   overall_training_time = 0
-  total_f1 = 0
+  total_f_score = 0
   total_precision = 0
   total_recall = 0
   avg_precision = 0
   avg_recall = 0
-  avg_fl = 0
+  avg_f_score = 0
   
   overall_training_time = time.time()
   for i in range(num_epochs):
@@ -205,31 +212,43 @@ with tf.Session() as sess:
     all_acc_file = open('/home/ubuntu/project/L44_Mini_Project/data_dir/resnet_accuracy/all_accuracy.txt',"a") 
     
     start_time_per_epoch = time.time()
+    
     for j in range(num_batches_per_epoch_training):
       print("Epoch %s, Batch %s" % (i,j))
       _,training_loss = sess.run([train_op, cross_entropy],feed_dict=feed_dict(batch_size,training_generator,i,True))
       train_accuracy = accuracy.eval(feed_dict=feed_dict(batch_size,training_generator,i,True))
       total_loss_val = total_loss_val + training_loss
       total_train_accuracy = total_train_accuracy + train_accuracy
+    
     avg_training_acc = total_train_accuracy/num_batches_per_epoch_training
     print("--------------------------------------------------------------------")
     print("Epoch %s: training accuracy %s, training loss %s" % (i,avg_training_acc,total_loss_val))
+    
     time_elapsed_training_per_epoch = time.time() - start_time_per_epoch
+    
+    accuracy_tf = sess.run([tf_accuracy],feed_dict=feed_dict(batch_size,validation_generator,i,False))
+    print("Accuracy before epoch: %s" % (accuracy_tf))
+      
     for _ in range(num_batches_per_epoch_validaton):
-      validation_loss, precision_val, recall_val = sess.run([cross_entropy,precision,recall],feed_dict=feed_dict(batch_size,validation_generator,i,False))
+      validation_loss, _, _, _ = sess.run([cross_entropy,p_op,r_op, acc_op],feed_dict=feed_dict(batch_size,validation_generator,i,False))
       total_val_loss_val = total_val_loss_val + validation_loss
       validation_accuracy = accuracy.eval(feed_dict=feed_dict(batch_size,validation_generator,i,False))
       total_val_accuracy = total_val_accuracy + validation_accuracy
-      total_precision = total_precision + precision_val[0]
-      total_recall = total_recall + recall_val[0]
-    avg_precision = total_precision/num_batches_per_epoch_validaton
-    avg_recall = total_recall/num_batches_per_epoch_validaton
+      #total_precision = total_precision + precision_val[0]
+      #total_recall = total_recall + recall_val[0]
+        
+    #avg_precision = total_precision/num_batches_per_epoch_validaton
+    avg_precision, avg_recall, accuracy_new = sess.run([precision,recall, tf_accuracy],feed_dict=feed_dict(batch_size,validation_generator,i,False))
+    
+    avg_f_score = 2 * ((avg_precision * avg_recall)/(avg_precision + avg_recall))
+    #avg_recall = total_recall/num_batches_per_epoch_validaton
     avg_val_acc = total_val_accuracy/num_batches_per_epoch_validaton
-    avg_fl = 2 * (avg_precision * avg_recall/(avg_precision + avg_recall))
-    print("Epoch %s: validation accuracy %s, validation loss %s, fl score %s" % (i,avg_val_acc, total_val_loss_val, avg_fl))
+    #avg_fl = 2 * (avg_precision * avg_recall/(avg_precision + avg_recall))
+
+    print("Epoch %s: validation accuracy %s, validation loss %s, avg prec %s, fl score %s, avg rec %s, acc %s" % (i,avg_val_acc, total_val_loss_val, avg_precision, avg_f_score, avg_recall, accuracy_new))
     print("--------------------------------------------------------------------")
     time_elapsed_eval_per_epoch = time.time() - start_time_per_epoch - time_elapsed_training_per_epoch
-    all_acc_file.write("%s %s %s %s %s %s %s %s %s %s\n" % (i, total_loss_val, total_val_loss_val, avg_training_acc, avg_val_acc, avg_fl, avg_precision, avg_recall, time_elapsed_training_per_epoch, time_elapsed_eval_per_epoch))
+    all_acc_file.write("%s %s %s %s %s %s %s %s %s %s %s\n" % (i, total_loss_val, total_val_loss_val, avg_training_acc, avg_val_acc, accuracy_new, avg_f_score, avg_precision, avg_recall, time_elapsed_training_per_epoch, time_elapsed_eval_per_epoch))
    
     #store model at best accuracy
     if avg_val_acc > best_accuracy:
@@ -248,8 +267,8 @@ with tf.Session() as sess:
     start_time = 0
     time_elapsed_eval = 0
     time_elapsed_training = 0
-    avg_fl = 0
-    total_f1 = 0
+    avg_f_score = 0
+    total_f_score = 0
     total_precision = 0
     total_recall = 0
     avg_precision = 0
@@ -257,6 +276,7 @@ with tf.Session() as sess:
     
     best_acc_file.close()
     all_acc_file.close()
+    sess.run(reset_op)
     
   overall_training_time = time.time() - overall_training_time
   print("Training time: %s" % overall_training_time)
